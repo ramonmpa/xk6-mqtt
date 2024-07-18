@@ -2,6 +2,7 @@
 package mqtt
 
 import (
+	"log"
 	"math/rand"
 	"testing"
 	"time"
@@ -20,11 +21,11 @@ import (
 // TO BE REACTIVATED WHEN POSSIBLE
 
 // test server params
-const host = "localhost"
+const host = "ssl://localhost"
 
 const (
 	port    = "1883"
-	timeout = "2000"
+	timeout = "200000"
 )
 
 func init() {
@@ -52,9 +53,6 @@ type testState struct {
 func newTestState(t testing.TB) testState {
 	tb := httpmultibin.NewHTTPMultiBin(t)
 
-	root, err := lib.NewGroup("", nil)
-	require.NoError(t, err)
-
 	rt := goja.New()
 	rt.SetFieldNameMapper(common.FieldNameMapper{})
 
@@ -62,7 +60,6 @@ func newTestState(t testing.TB) testState {
 
 	registry := metrics.NewRegistry()
 	state := &lib.State{
-		Group:  root,
 		Dialer: tb.Dialer,
 		Options: lib.Options{
 			SystemTags: metrics.NewSystemTagSet(
@@ -98,6 +95,9 @@ func newTestState(t testing.TB) testState {
 	}
 }
 
+func TestSimple(t *testing.T) {
+	log.Print("Detected RateRefill = 0 -> Disabled")
+}
 func TestBasic(t *testing.T) {
 	t.Parallel()
 	ts := newTestState(t)
@@ -109,8 +109,17 @@ func TestBasic(t *testing.T) {
 	const host = "` + host + `";
 	const port = "` + port + `";
 	const timeout = ` + timeout + `;
+	const caROOT = "../certs/ca.crt";
+	const clientCertPath = "../certs/tls.crt";
+	const clientCertKeyPath = "../certs/tls.key";
 	let err;
 
+	const pub_labels = {
+		"sentBytesLabel": "pub_mqtt_sent_bytes",
+		"receivedBytesLabel": "pub_mqtt_received_bytes",
+		"sentMessagesCountLabel": "pub_mqtt_sent_messages_count",
+		"receivedMessagesCountLabel": "pub_mqtt_received_messages_count"
+	};
 	let client = new mqtt.Client(
 		// The list of URL of  MQTT server to connect to
 		[host + ":" + port],
@@ -124,6 +133,14 @@ func TestBasic(t *testing.T) {
 		k6PubId,
 		// timeout in ms
 		timeout,
+		// caRoot
+		caROOT,
+		// client certificate path
+		clientCertPath,
+		// client certificate key path
+		clientCertKeyPath,
+		pub_labels,
+		false,
 	)
 
 	if (client.isConnected() == true) {
@@ -402,7 +419,7 @@ subscriber.addEventListener("error", (err) => {
 
 for (let i = 0; i < messageCount; i++) {
 	// publish count messages
-	publisher.publish(
+	publisher.publishString(
 		// topic to be used
 		k6Topic,
 		// The QoS of messages
@@ -511,7 +528,7 @@ subscriber.addEventListener("error", (err) => {
 
 
 // publish success and failure
-publisher.publish(
+publisher.publishString(
 	// topic to be used
 	k6Topic,
 	// The QoS of messages
@@ -535,7 +552,7 @@ publisher.publish(
 );
 
 // publish success only
-publisher.publish(
+publisher.publishString(
 	// topic to be used
 	k6Topic,
 	// The QoS of messages
@@ -554,7 +571,7 @@ publisher.publish(
 );
 
 // publish error only
-publisher.publish(
+publisher.publishString(
 	// topic to be used
 	k6Topic,
 	// The QoS of messages
@@ -593,7 +610,7 @@ let failer = new mqtt.Client(
 )
 
 // publish test failure
-failer.publish(
+failer.publishString(
 	// topic to be used
 	k6Topic,
 	// The QoS of messages
@@ -684,7 +701,7 @@ subscriber.addEventListener("error", (err) => {
 		throw new Error("message not received error:", err)
 	})
 
-publisher.publish(
+publisher.publishString(
 	// topic to be used
 	k6Topic,
 	// The QoS of messages

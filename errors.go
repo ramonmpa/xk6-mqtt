@@ -19,4 +19,10 @@ var (
 	ErrConsumeToken = errors.New("invalid consume token")
 	// ErrPublish publish to mqtt failed
 	ErrPublish = errors.New("publish failure")
+	ErrMandatoryTimeout = errors.New("client requires a timeout value")
+	ErrMandatoryClientID = errors.New("client requires a clientID value")
+	ErrMandatoryCleansess = errors.New("client requires a cleansess value")
+	ErrMandatoryPassword = errors.New("client requires a password value")
+	ErrMandatoryUser = errors.New("client requires a user value")
+	ErrMandatoryServer = errors.New("client requires a server list")
 )

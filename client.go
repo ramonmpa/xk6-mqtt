@@ -4,8 +4,8 @@ package mqtt
 import (
 	"crypto/tls"
 	"crypto/x509"
-	"errors"
 	"fmt"
+	"log"
 	"os"
 	"time"
 
@@ -77,23 +77,33 @@ func getLabels(labelsArg sobek.Value, rt *sobek.Runtime) mqttMetricsLabels {
 
 	labelsJS, ok := metricsLabels.Export().(map[string]any)
 	if !ok {
-		common.Throw(rt, fmt.Errorf("invalid metricsLabels %#v", metricsLabels.Export()))
+		var err = fmt.Errorf("invalid metricsLabels %#v", metricsLabels.Export())
+		log.Printf("%v", err)
+		common.Throw(rt, err)
 	}
 	labels.SentBytesLabel, ok = labelsJS["sentBytesLabel"].(string)
 	if !ok {
-		common.Throw(rt, fmt.Errorf("invalid metricsLabels sentBytesLabel %#v", metricsLabels.Export()))
+		var err = fmt.Errorf("invalid metricsLabels sentBytesLabel %#v", metricsLabels.Export())
+		log.Printf("%v", err)
+		common.Throw(rt, err)
 	}
 	labels.ReceivedBytesLabel, ok = labelsJS["receivedBytesLabel"].(string)
 	if !ok {
-		common.Throw(rt, fmt.Errorf("invalid metricsLabels receivedBytesLabel %#v", metricsLabels.Export()))
+		var err = fmt.Errorf("invalid metricsLabels receivedBytesLabel %#v", metricsLabels.Export())
+		log.Printf("%v", err)
+		common.Throw(rt, err)
 	}
 	labels.SentMessagesCountLabel, ok = labelsJS["sentMessagesCountLabel"].(string)
 	if !ok {
-		common.Throw(rt, fmt.Errorf("invalid metricsLabels sentMessagesCountLabel %#v", metricsLabels.Export()))
+		var err = fmt.Errorf("invalid metricsLabels sentMessagesCountLabel %#v", metricsLabels.Export())
+		log.Printf("%v", err)
+		common.Throw(rt, err)
 	}
 	labels.ReceivedMessagesCountLabel, ok = labelsJS["receivedMessagesCountLabel"].(string)
 	if !ok {
-		common.Throw(rt, fmt.Errorf("invalid metricsLabels receivedMessagesCountLabel %#v", metricsLabels.Export()))
+		var err = fmt.Errorf("invalid metricsLabels receivedMessagesCountLabel %#v", metricsLabels.Export())
+		log.Printf("%v", err)
+		common.Throw(rt, err)
 	}
 
 	return labels
@@ -104,41 +114,48 @@ func (m *MqttAPI) client(c sobek.ConstructorCall) *sobek.Object {
 	serversArray := c.Argument(0)
 	rt := m.vu.Runtime()
 	if serversArray == nil || sobek.IsUndefined(serversArray) {
-		common.Throw(rt, errors.New("Client requires a server list"))
+		log.Printf("%v", ErrMandatoryServer)
+		common.Throw(rt, ErrMandatoryServer)
 	}
 	var servers []string
 	var clientConf conf
 	err := rt.ExportTo(serversArray, &servers)
 	if err != nil {
+		log.Printf("%v", err)
 		common.Throw(rt,
-			fmt.Errorf("Client requires valid server list, but got %q which resulted in %w", serversArray, err))
+			fmt.Errorf("client requires valid server list, but got %q which resulted in %w", serversArray, err))
 	}
 	clientConf.servers = servers
 	userValue := c.Argument(1)
 	if userValue == nil || sobek.IsUndefined(userValue) {
-		common.Throw(rt, errors.New("Client requires a user value"))
+		log.Printf("%v", ErrMandatoryUser)
+		common.Throw(rt, ErrMandatoryUser)
 	}
 	clientConf.user = userValue.String()
 	passwordValue := c.Argument(2)
 	if userValue == nil || sobek.IsUndefined(passwordValue) {
-		common.Throw(rt, errors.New("Client requires a password value"))
+		log.Printf("%v", ErrMandatoryPassword)
+		common.Throw(rt, ErrMandatoryPassword)
 	}
 	clientConf.password = passwordValue.String()
 	cleansessValue := c.Argument(3)
 	if cleansessValue == nil || sobek.IsUndefined(cleansessValue) {
-		common.Throw(rt, errors.New("Client requires a cleansess value"))
+		log.Printf("%v", ErrMandatoryCleansess)
+		common.Throw(rt, ErrMandatoryCleansess)
 	}
 	clientConf.cleansess = cleansessValue.ToBoolean()
 
 	clientIDValue := c.Argument(4)
 	if clientIDValue == nil || sobek.IsUndefined(clientIDValue) {
-		common.Throw(rt, errors.New("Client requires a clientID value"))
+		log.Printf("%v", ErrMandatoryClientID)
+		common.Throw(rt, ErrMandatoryClientID)
 	}
 	clientConf.clientid = clientIDValue.String()
 
 	timeoutValue := c.Argument(5)
 	if timeoutValue == nil || sobek.IsUndefined(timeoutValue) {
-		common.Throw(rt, errors.New("Client requires a timeout value"))
+		log.Printf("%v", ErrMandatoryTimeout)
+		common.Throw(rt, ErrMandatoryTimeout)
 	}
 	clientConf.timeout = uint(timeoutValue.ToInteger())
 
@@ -162,6 +179,7 @@ func (m *MqttAPI) client(c sobek.ConstructorCall) *sobek.Object {
 	labels := getLabels(c.Argument(9), rt)
 	metrics, err := registerMetrics(m.vu, labels)
 	if err != nil {
+		log.Printf("%v", err)
 		common.Throw(m.vu.Runtime(), err)
 	}
 
@@ -176,6 +194,7 @@ func (m *MqttAPI) client(c sobek.ConstructorCall) *sobek.Object {
 	}
 	must := func(err error) {
 		if err != nil {
+			log.Printf("%v", err)
 			common.Throw(rt, err)
 		}
 	}
@@ -190,7 +209,9 @@ func (m *MqttAPI) client(c sobek.ConstructorCall) *sobek.Object {
 	must(client.obj.DefineDataProperty(
 		"isConnected", rt.ToValue(client.IsConnected), sobek.FLAG_FALSE, sobek.FLAG_FALSE, sobek.FLAG_TRUE))
 	must(client.obj.DefineDataProperty(
-		"publish", rt.ToValue(client.Publish), sobek.FLAG_FALSE, sobek.FLAG_FALSE, sobek.FLAG_TRUE))
+		"publishString", rt.ToValue(client.PublishString), sobek.FLAG_FALSE, sobek.FLAG_FALSE, sobek.FLAG_TRUE))
+	must(client.obj.DefineDataProperty(
+		"publishBytes", rt.ToValue(client.PublishBytes), sobek.FLAG_FALSE, sobek.FLAG_FALSE, sobek.FLAG_TRUE))
 	must(client.obj.DefineDataProperty(
 		"subscribe", rt.ToValue(client.Subscribe), sobek.FLAG_FALSE, sobek.FLAG_FALSE, sobek.FLAG_TRUE))
 
@@ -214,6 +235,7 @@ func (c *client) Connect() error {
 		rootCA := x509.NewCertPool()
 		loadCA := rootCA.AppendCertsFromPEM(mqttTLSCA)
 		if !loadCA {
+			log.Printf("failed to parse root certificate")
 			panic("failed to parse root certificate")
 		}
 		tlsConfig = &tls.Config{
@@ -225,6 +247,7 @@ func (c *client) Connect() error {
 	if len(c.conf.clientCertPath) > 0 {
 		cert, err := tls.LoadX509KeyPair(c.conf.clientCertPath, c.conf.clientCertKeyPath)
 		if err != nil {
+			log.Printf("failed to parse client certificate")
 			panic("failed to parse client certificate")
 		}
 		if tlsConfig != nil {
@@ -258,10 +281,12 @@ func (c *client) Connect() error {
 	token := client.Connect()
 	rt := c.vu.Runtime()
 	if !token.WaitTimeout(time.Duration(c.conf.timeout) * time.Millisecond) {
+		log.Printf("%v", ErrTimeout)
 		common.Throw(rt, ErrTimeout)
 		return ErrTimeout
 	}
 	if token.Error() != nil {
+		log.Printf("%v", token.Error())
 		common.Throw(rt, token.Error())
 		return token.Error()
 	}
@@ -298,6 +323,7 @@ func (c *client) newErrorEvent(msg string) *sobek.Object {
 	o := rt.NewObject()
 	must := func(err error) {
 		if err != nil {
+			log.Printf("%v", err)
 			common.Throw(rt, err)
 		}
 	}

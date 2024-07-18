@@ -1,20 +1,51 @@
 package mqtt
 
 import (
+	"fmt"
 	"time"
+	"log"
 
 	"github.com/grafana/sobek"
 	"go.k6.io/k6/js/common"
 	"go.k6.io/k6/metrics"
 )
 
-// Publish allow to publish one message
+// PublishString publishes one message when the payload is of type string.
 //
 //nolint:gocognit
-func (c *client) Publish(
+func (c *client) PublishString(
 	topic string,
 	qos int,
 	message string,
+	retain bool,
+	timeout uint,
+	success func(sobek.Value) (sobek.Value, error),
+	failure func(sobek.Value) (sobek.Value, error),
+) error {
+	//log.Printf("PublishString: %v", message)
+	return c.publish(topic, qos, message, retain, timeout, success, failure)
+}
+
+// PublishBytes publishes one message when the payload is of type []byte.
+//
+//nolint:gocognit
+func (c *client) PublishBytes(
+	topic string,
+	qos int,
+	message []byte,
+	retain bool,
+	timeout uint,
+	success func(sobek.Value) (sobek.Value, error),
+	failure func(sobek.Value) (sobek.Value, error),
+) error {
+	//log.Printf("PublishBytes: %v", message)
+	return c.publish(topic, qos, message, retain, timeout, success, failure)
+}
+
+func (c *client) publish(
+	topic string,
+	qos int,
+	message interface{},
 	retain bool,
 	timeout uint,
 	success func(sobek.Value) (sobek.Value, error),
@@ -32,6 +63,7 @@ func (c *client) Publish(
 				ev := c.newErrorEvent("publish not connected")
 				if failure != nil {
 					if _, err := failure(ev); err != nil {
+						log.Printf("%v", err)
 						return err
 					}
 				}
@@ -46,6 +78,7 @@ func (c *client) Publish(
 
 				if failure != nil {
 					if _, err := failure(ev); err != nil {
+						log.Printf("%v", err)
 						return err
 					}
 				}
@@ -58,6 +91,7 @@ func (c *client) Publish(
 				ev := c.newErrorEvent(err.Error())
 				if failure != nil {
 					if _, err := failure(ev); err != nil {
+						log.Printf("%v", err)
 						return err
 					}
 				}
@@ -66,13 +100,14 @@ func (c *client) Publish(
 			return
 		}
 		callback(func() error {
-			err := c.publishMessageMetric(float64(len(message)))
+			err := c.publishMessageMetric(getMessageLength(message))
 			if err != nil {
 				return err
 			}
 			ev := c.newPublishEvent(topic)
 			if success != nil {
 				if _, err := success(ev); err != nil {
+					log.Printf("%v", err)
 					return err
 				}
 			}
@@ -85,7 +120,7 @@ func (c *client) Publish(
 func (c *client) publishSync(
 	topic string,
 	qos int,
-	message string,
+	message interface{},
 	retain bool,
 	timeout uint,
 ) error {
@@ -98,19 +133,33 @@ func (c *client) publishSync(
 	// sync case
 	if !token.WaitTimeout(time.Duration(timeout) * time.Millisecond) {
 		rt := c.vu.Runtime()
+		log.Printf("%v", ErrTimeout)
 		common.Throw(rt, ErrTimeout)
 		return ErrTimeout
 	}
 	if err := token.Error(); err != nil {
 		rt := c.vu.Runtime()
+		log.Printf("%v", err)
 		common.Throw(rt, ErrPublish)
 		return ErrPublish
 	}
-	err := c.publishMessageMetric(float64(len(message)))
+	err := c.publishMessageMetric(getMessageLength(message))
 	if err != nil {
+		log.Printf("%v", err)
 		return err
 	}
 	return nil
+}
+
+func getMessageLength(message interface{}) float64 {
+	var msg_length float64 = 0
+	switch msg := message.(type) {
+	case []byte:
+		msg_length = float64(len(msg))
+	default:
+		msg_length = float64(len(fmt.Sprintf("%v", msg)))
+	}
+	return msg_length
 }
 
 func (c *client) publishMessageMetric(msgLen float64) error {
@@ -144,6 +193,7 @@ func (c *client) newPublishEvent(topic string) *sobek.Object {
 	o := rt.NewObject()
 	must := func(err error) {
 		if err != nil {
+			log.Printf("%v", err)
 			common.Throw(rt, err)
 		}
 	}
